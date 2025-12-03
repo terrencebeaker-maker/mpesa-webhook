@@ -1,5 +1,5 @@
 <?php
-// stkpush.php – Initiate M-Pesa STK Push
+// stkpush.php – Initiate M-Pesa STK Push (FIXED VERSION)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
@@ -15,7 +15,6 @@ $consumerKey = getenv('MPESA_CONSUMER_KEY') ?: 'BqGXfPzkAS3Ada7JAV6jNcr26hKRmzVn
 $consumerSecret = getenv('MPESA_CONSUMER_SECRET') ?: 'NHfO1qmG1pMzBiVy';
 $shortCode = getenv('MPESA_SHORTCODE') ?: '7887702';
 $passkey = getenv('MPESA_PASSKEY') ?: '8ba2b74132b75970ed1d1ca22396f8b4eb79106902bf8e0017f4f0558fb6cc18';
-//$callbackUrl = getenv('MPESA_CALLBACK_URL') ?: 'https://stkpush-api-production.up.railway.app/callback.php';
 $callbackUrl = getenv('MPESA_CALLBACK_URL') ?: 'https://mpesa-webhook-production.up.railway.app/callback.php';
 
 // --- Logs ---
@@ -26,7 +25,7 @@ $logFile = $logDir . '/stk_debug.log';
 // --- Debug endpoint to view logs in browser ---
 if (isset($_GET['debug']) && $_GET['debug'] == '1') {
     header('Content-Type: text/plain');
-    echo file_get_contents($logFile);
+    echo file_exists($logFile) ? file_get_contents($logFile) : 'No log file found';
     exit;
 }
 
@@ -82,32 +81,39 @@ if (!$response || !isset($response['ResponseCode'])) {
 }
 
 if ($response['ResponseCode'] == '0') {
-    // ✅ Save to database
+    // ✅ Save to database with CORRECT COLUMN NAMES (snake_case)
     $conn = new mysqli($host, $user, $password, $database, $port);
     if ($conn->connect_error) {
         respond(false, "DB Connection failed: " . $conn->connect_error);
     }
 
-    $MerchantRequestID = $response['MerchantRequestID'] ?? '';
-    $CheckoutRequestID = $response['CheckoutRequestID'] ?? '';
-    $CustomerMessage = $response['CustomerMessage'] ?? 'Request accepted for processing';
+    $merchantRequestID = $response['MerchantRequestID'] ?? '';
+    $checkoutRequestID = $response['CheckoutRequestID'] ?? '';
+    $customerMessage = $response['CustomerMessage'] ?? 'Request accepted for processing';
 
+    // ✅ FIXED: Use snake_case column names matching your schema
     $stmt = $conn->prepare("
         INSERT INTO mpesa_transactions 
-        (MerchantRequestID, CheckoutRequestID, ResultCode, ResultDesc, Amount, PhoneNumber, created_at) 
+        (merchant_request_id, checkout_request_id, result_code, result_desc, amount, phone_number, created_at) 
         VALUES (?, ?, ?, ?, ?, ?, NOW())
     ");
 
     $resultCode = 0;
     $resultDesc = 'Request accepted for processing';
-    $stmt->bind_param('ssisss', $MerchantRequestID, $CheckoutRequestID, $resultCode, $resultDesc, $amount, $phone);
-    $stmt->execute();
+    $stmt->bind_param('ssisss', $merchantRequestID, $checkoutRequestID, $resultCode, $resultDesc, $amount, $phone);
+    
+    if (!$stmt->execute()) {
+        file_put_contents($logFile, "[".date('Y-m-d H:i:s')."] DB INSERT ERROR: " . $stmt->error . PHP_EOL, FILE_APPEND);
+    } else {
+        file_put_contents($logFile, "[".date('Y-m-d H:i:s')."] DB INSERT SUCCESS: CheckoutRequestID=$checkoutRequestID" . PHP_EOL, FILE_APPEND);
+    }
+    
     $stmt->close();
     $conn->close();
 
-    respond(true, $CustomerMessage, [
-        'MerchantRequestID' => $MerchantRequestID,
-        'CheckoutRequestID' => $CheckoutRequestID
+    respond(true, $customerMessage, [
+        'MerchantRequestID' => $merchantRequestID,
+        'CheckoutRequestID' => $checkoutRequestID
     ]);
 } else {
     respond(false, "M-Pesa Error: " . ($response['errorMessage'] ?? 'Unknown error'));
@@ -120,7 +126,8 @@ function getAccessToken($key, $secret) {
     curl_setopt_array($curl, [
         CURLOPT_URL => 'https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials',
         CURLOPT_HTTPHEADER => ["Authorization: Basic $credentials"],
-        CURLOPT_RETURNTRANSFER => true
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_SSL_VERIFYPEER => true
     ]);
     $result = curl_exec($curl);
     curl_close($curl);
@@ -138,7 +145,8 @@ function makeStkRequest($token, $data) {
         ],
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => json_encode($data),
-        CURLOPT_RETURNTRANSFER => true
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_SSL_VERIFYPEER => true
     ]);
     $result = curl_exec($curl);
     curl_close($curl);
