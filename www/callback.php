@@ -6,11 +6,12 @@ ini_set('display_errors', 1);
 // =============================
 // DATABASE CONFIGURATION
 // =============================
-$host = "maglev.proxy.rlwy.net";
+$host = "mainline.proxy.rlwy.net";
 $user = "root";
-$password = "cJYEAVTFXdujqruHefgQxugPVfdASWRv";
+$password = "jPNMrNeqkNvQtnQNRKkeaMTsrcIkYfxj";
 $database = "railway";
-$port = 13831;
+$port = 54048;
+
 
 // =============================
 // VB.NET API ENDPOINT

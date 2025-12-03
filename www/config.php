@@ -1,10 +1,10 @@
 <?php
 // config.php - Railway MySQL connection
-$host = getenv('DB_HOST') ?: 'maglev.proxy.rlwy.net';
+$host = getenv('DB_HOST') ?: 'mainline.proxy.rlwy.net';
 $user = getenv('DB_USER') ?: 'root';
-$password = getenv('DB_PASSWORD') ?: 'cJYEAVTFXdujqruHefgQxugPVfdASWRv';
+$password = getenv('DB_PASSWORD') ?: 'jPNMrNeqkNvQtnQNRKkeaMTsrcIkYfxj';
 $database = getenv('DB_NAME') ?: 'railway';
-$port = intval(getenv('DB_PORT') ?: 13831);
+$port = intval(getenv('DB_PORT') ?: 54048);
 
 $conn = new mysqli($host, $user, $password, $database, $port);
 

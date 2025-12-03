@@ -2,11 +2,12 @@
 // stk_status_checker.php - Checks pending transactions and updates their status
 
 // Railway Database Configuration
-$host = "maglev.proxy.rlwy.net";
+$host = "mainline.proxy.rlwy.net";
 $user = "root";
-$password = "cJYEAVTFXdujqruHefgQxugPVfdASWRv";
+$password = "jPNMrNeqkNvQtnQNRKkeaMTsrcIkYfxj";
 $database = "railway";
-$port = 13831;
+$port = 54048;
+
 
 // M-Pesa API Configuration
 $consumer_key = "BqGXfPzkAS3Ada7JAV6jNcr26hKRmzVn";

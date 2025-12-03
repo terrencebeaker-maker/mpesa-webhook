@@ -4,18 +4,19 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 // --- Database Configuration (Railway) ---
-$host = getenv('DB_HOST') ?: 'maglev.proxy.rlwy.net';
+$host = getenv('DB_HOST') ?: 'mainline.proxy.rlwy.net';
 $user = getenv('DB_USER') ?: 'root';
-$password = getenv('DB_PASSWORD') ?: 'cJYEAVTFXdujqruHefgQxugPVfdASWRv';
+$password = getenv('DB_PASSWORD') ?: 'jPNMrNeqkNvQtnQNRKkeaMTsrcIkYfxj';
 $database = getenv('DB_NAME') ?: 'railway';
-$port = intval(getenv('DB_PORT') ?: 13831);
+$port = intval(getenv('DB_PORT') ?: 54048);
 
 // --- M-Pesa Credentials ---
 $consumerKey = getenv('MPESA_CONSUMER_KEY') ?: 'BqGXfPzkAS3Ada7JAV6jNcr26hKRmzVn';
 $consumerSecret = getenv('MPESA_CONSUMER_SECRET') ?: 'NHfO1qmG1pMzBiVy';
 $shortCode = getenv('MPESA_SHORTCODE') ?: '7887702';
 $passkey = getenv('MPESA_PASSKEY') ?: '8ba2b74132b75970ed1d1ca22396f8b4eb79106902bf8e0017f4f0558fb6cc18';
-$callbackUrl = getenv('MPESA_CALLBACK_URL') ?: 'https://stkpush-api-production.up.railway.app/callback.php';
+//$callbackUrl = getenv('MPESA_CALLBACK_URL') ?: 'https://stkpush-api-production.up.railway.app/callback.php';
+$callbackUrl = getenv('MPESA_CALLBACK_URL') ?: 'https://mpesa-webhook-production.up.railway.app/callback.php';
 
 // --- Logs ---
 $logDir = __DIR__ . '/logs';
