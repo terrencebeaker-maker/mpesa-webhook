@@ -1,14 +1,10 @@
 <?php
+// check_status.php
 header("Content-Type: application/json");
 header("Access-Control-Allow-Origin: *");
 
-// Railway Database Configuration
-$host = getenv('DB_HOST') ?: 'mainline.proxy.rlwy.net';
-$user = getenv('DB_USER') ?: 'root';
-$password = getenv('DB_PASSWORD') ?: 'jPNMrNeqkNvQtnQNRKkeaMTsrcIkYfxj';
-$database = getenv('DB_NAME') ?: 'railway';
-$port = intval(getenv('DB_PORT') ?: 54048);
-
+// Include the centralized database connection
+require_once 'config.php';
 
 // Get CheckoutRequestID from query parameter
 $checkoutRequestID = $_GET['checkout_request_id'] ?? '';
@@ -24,28 +20,20 @@ if (empty($checkoutRequestID)) {
 }
 
 try {
-    // Connect to database
-    $conn = new mysqli($host, $user, $password, $database, $port);
-    
-    if ($conn->connect_error) {
-        throw new Exception("Database connection failed: " . $conn->connect_error);
-    }
-    
-    $conn->set_charset("utf8mb4");
-    
-    // Query the transaction
+    // Query the transaction using PascalCase columns
     $stmt = $conn->prepare("
         SELECT 
-            checkout_request_id as CheckoutRequestID,
-            merchant_request_id as MerchantRequestID,
-            result_code as ResultCode,
-            result_desc as ResultDesc,
-            amount as Amount,
-            mpesa_receipt_number as MpesaReceiptNumber,
-            phone_number as PhoneNumber,
-            created_at as TransactionDate
+            CheckoutRequestID,
+            MerchantRequestID,
+            ResultCode,
+            ResultDesc,
+            Amount,
+            MpesaReceiptNumber,
+            PhoneNumber,
+            TransactionDate,
+            created_at
         FROM mpesa_transactions 
-        WHERE checkout_request_id = ? 
+        WHERE CheckoutRequestID = ? 
         ORDER BY id DESC 
         LIMIT 1
     ");

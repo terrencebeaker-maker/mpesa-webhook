@@ -1,17 +1,10 @@
 <?php
-// mpesa_callback.php - FIXED VERSION
+// mpesa_callback.php
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// =============================
-// DATABASE CONFIGURATION
-// =============================
-$host = "mainline.proxy.rlwy.net";
-$user = "root";
-$password = "jPNMrNeqkNvQtnQNRKkeaMTsrcIkYfxj";
-$database = "railway";
-$port = 54048;
-
+// Include the centralized database connection
+require_once 'config.php';
 
 // =============================
 // VB.NET API ENDPOINT
@@ -26,21 +19,10 @@ function logMessage($msg)
     $ts = date('Y-m-d H:i:s');
     $line = "[$ts] $msg\n";
     file_put_contents('mpesa_callback.log', $line, FILE_APPEND | LOCK_EX);
-    echo $line;
-    flush();
+    // Don't echo log lines to output as M-Pesa expects JSON
 }
 
 try {
-    // =============================
-    // CONNECT TO DATABASE (PDO)
-    // =============================
-    $dsn = "mysql:host=$host;port=$port;dbname=$database;charset=utf8mb4";
-    $conn = new PDO($dsn, $user, $password, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-    ]);
-    logMessage("✅ Database connected successfully");
-
     // =============================
     // READ INCOMING JSON
     // =============================
@@ -66,10 +48,10 @@ try {
     $ResultCode = $cb['ResultCode'] ?? '';
     $ResultDesc = $cb['ResultDesc'] ?? '';
 
-    $Amount = null;
+    $Amount = 0.00;
     $MpesaReceiptNumber = '';
     $PhoneNumber = '';
-    $TransactionDate = date('Y-m-d H:i:s');
+    $TransactionDate = date('Y-m-d H:i:s'); // Default to now
 
     // Extract CallbackMetadata (only present on success ResultCode=0)
     if (isset($cb['CallbackMetadata']['Item'])) {
@@ -102,14 +84,18 @@ try {
         }
     }
 
-    logMessage("Parsed -> CheckoutRequestID: $CheckoutRequestID | ResultCode: $ResultCode | Amount: $Amount | Receipt: $MpesaReceiptNumber | Phone: $PhoneNumber");
+    logMessage("Parsed -> CheckoutRequestID: $CheckoutRequestID | ResultCode: $ResultCode | Amount: $Amount | Receipt: $MpesaReceiptNumber");
 
     // =============================
     // CHECK EXISTING TRANSACTION
     // =============================
-    $stmt = $conn->prepare("SELECT id, result_code, mpesa_receipt_number FROM mpesa_transactions WHERE checkout_request_id = ? LIMIT 1");
-    $stmt->execute([$CheckoutRequestID]);
-    $row = $stmt->fetch();
+    // Using PascalCase Column name CheckoutRequestID
+    $stmt = $conn->prepare("SELECT id, ResultCode, MpesaReceiptNumber FROM mpesa_transactions WHERE CheckoutRequestID = ? LIMIT 1");
+    $stmt->bind_param("s", $CheckoutRequestID);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    $stmt->close();
 
     $message = "";
 
@@ -119,34 +105,68 @@ try {
         // =============================
         logMessage("📝 Updating existing transaction ID: {$row['id']}");
         
+        // Using PascalCase Column names for Update
         $upd = $conn->prepare("
             UPDATE mpesa_transactions 
-            SET result_code = ?, 
-                result_desc = ?, 
-                amount = COALESCE(?, amount), 
-                mpesa_receipt_number = COALESCE(NULLIF(?, ''), mpesa_receipt_number), 
-                phone_number = COALESCE(NULLIF(?, ''), phone_number), 
-                created_at = COALESCE(?, created_at)
+            SET ResultCode = ?, 
+                ResultDesc = ?, 
+                Amount = IF(? > 0, ?, Amount), 
+                MpesaReceiptNumber = IF(? != '', ?, MpesaReceiptNumber), 
+                PhoneNumber = IF(? != '', ?, PhoneNumber), 
+                TransactionDate = ?
             WHERE id = ?
         ");
-        $upd->execute([$ResultCode, $ResultDesc, $Amount, $MpesaReceiptNumber, $PhoneNumber, $TransactionDate, $row['id']]);
-        $message = "Transaction updated: ResultCode=$ResultCode";
-        logMessage("✅ Updated transaction - Receipt: $MpesaReceiptNumber");
+        
+        // Parameters: i (int), s (string), d (double), d, s, s, s, s, s, i
+        $upd->bind_param("isdssssssi", 
+            $ResultCode, 
+            $ResultDesc, 
+            $Amount, $Amount,
+            $MpesaReceiptNumber, $MpesaReceiptNumber,
+            $PhoneNumber, $PhoneNumber,
+            $TransactionDate,
+            $row['id']
+        );
+        
+        if ($upd->execute()) {
+            $message = "Transaction updated: ResultCode=$ResultCode";
+            logMessage("✅ Updated transaction successfully");
+        } else {
+            logMessage("❌ Update failed: " . $upd->error);
+        }
+        $upd->close();
         
     } else {
         // =============================
         // INSERT NEW TRANSACTION
         // =============================
-        logMessage("🆕 Inserting new transaction");
+        logMessage("🆕 Inserting new transaction (Not found via CheckoutRequestID)");
         
+        // Using PascalCase Column names (except created_at)
         $ins = $conn->prepare("
             INSERT INTO mpesa_transactions 
-            (merchant_request_id, checkout_request_id, result_code, result_desc, amount, mpesa_receipt_number, phone_number, created_at) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (MerchantRequestID, CheckoutRequestID, ResultCode, ResultDesc, Amount, MpesaReceiptNumber, PhoneNumber, TransactionDate, created_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
         ");
-        $ins->execute([$MerchantRequestID, $CheckoutRequestID, $ResultCode, $ResultDesc, $Amount, $MpesaReceiptNumber, $PhoneNumber, $TransactionDate]);
-        $message = "Transaction saved: ResultCode=$ResultCode";
-        logMessage("✅ Inserted transaction - CheckoutRequestID: $CheckoutRequestID");
+        
+        $ins->bind_param("ssisdsss", 
+            $MerchantRequestID, 
+            $CheckoutRequestID, 
+            $ResultCode, 
+            $ResultDesc, 
+            $Amount, 
+            $MpesaReceiptNumber, 
+            $PhoneNumber, 
+            $TransactionDate
+        );
+        
+        if ($ins->execute()) {
+            $message = "Transaction saved: ResultCode=$ResultCode";
+            logMessage("✅ Inserted transaction successfully");
+        } else {
+            logMessage("❌ Insert failed: " . $ins->error);
+        }
+        $ins->close();
     }
 
     // =============================
@@ -193,7 +213,6 @@ try {
         'ResultDesc' => 'Callback processed successfully',
         'Status' => $message
     ]);
-    logMessage("✅ Callback processed -> $message");
 
 } catch (Exception $e) {
     // =============================
