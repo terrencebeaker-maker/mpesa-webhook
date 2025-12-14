@@ -84,11 +84,14 @@ if ($response['ResponseCode'] == '0') {
     $resultCode = 0;
     $resultDesc = 'Request accepted for processing';
     
-    // Bind parameters: s=string, i=int, d=double/float
-    $stmt->bind_param('ssids', $merchantRequestID, $checkoutRequestID, $resultCode, $resultDesc, $amount, $phone);
+    // ✅ FIXED: Correct type string - matches 6 parameters
+    // s = string, i = integer, d = double/float
+    // Order: MerchantRequestID(s), CheckoutRequestID(s), ResultCode(i), ResultDesc(s), Amount(d), PhoneNumber(s)
+    $stmt->bind_param('ssisds', $merchantRequestID, $checkoutRequestID, $resultCode, $resultDesc, $amount, $phone);
     
     if (!$stmt->execute()) {
         file_put_contents($logFile, "[".date('Y-m-d H:i:s')."] DB INSERT ERROR: " . $stmt->error . PHP_EOL, FILE_APPEND);
+        respond(false, "Database error: " . $stmt->error);
     } else {
         file_put_contents($logFile, "[".date('Y-m-d H:i:s')."] DB INSERT SUCCESS: CheckoutRequestID=$checkoutRequestID" . PHP_EOL, FILE_APPEND);
     }
